@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SerbBuilder: 塞尔维亚语学习库</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; background: #f4f4f4; }
+        h1 { text-align: center; color: #333; }
+        .sentence-group { border: 1px solid #ccc; margin-bottom: 20px; padding: 15px; border-radius: 8px; background: white; }
+        .sentence-header { background: #4CAF50; color: white; padding: 10px; cursor: pointer; border-radius: 4px; }
+        .sentence-content { display: none; padding: 10px; }
+        .word-group { border: 1px dashed #ddd; margin: 10px 0; padding: 10px; border-radius: 4px; }
+        .input-group { margin-bottom: 10px; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; }
+        input[type="text"], input[type="file"] { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        button { background: #4CAF50; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; margin: 5px 5px 5px 0; }
+        button:hover { background: #45a049; }
+        button.delete { background: #f44336; }
+        button.delete:hover { background: #da190b; }
+        button.pause { background: #ff9800; }
+        button.pause:hover { background: #e68900; }
+        audio { width: 100%; margin-top: 5px; }
+        #addSentence { text-align: center; margin: 20px 0; }
+        .header-preview { margin-left: 10px; }
+        .error-tip { color: red; font-size: 0.9em; }
+    </style>
+</head>
+<body>
+    <h1>SerbBuilder: 塞尔维亚语学习库</h1>
+    <p style="text-align: center;">点击“添加新句子”开始，按指南积累你的知识库！<br><small class="error-tip">提示：首次播放需点击页面交互（如按钮），支持MP3/WAV小文件。</small></p>
+    
+    <div id="sentenceContainer"></div>
+    <div id="addSentence">
+        <button onclick="addSentence()">添加新句子</button>
+    </div>
+
+    <script>
+        let sentenceList = JSON.parse(localStorage.getItem('sentenceList')) || [];
+        let openStates = JSON.parse(localStorage.getItem('openStates')) || [];
+        let hasUserInteraction = false;  // 跟踪用户交互
+
+        // 监听任何点击，标记交互
+        document.addEventListener('click', () => { hasUserInteraction = true; }, { once: false });
+
+        function saveData() {
+            localStorage.setItem('sentenceList', JSON.stringify(sentenceList));
+            localStorage.setItem('openStates', JSON.stringify(openStates));
+        }
+
+        function render() {
+            const container = document.getElementById('sentenceContainer');
+            container.innerHTML = '';
+            sentenceList.forEach((sentence, i) => {
+                const group = document.createElement('div');
+                group.className = 'sentence-group';
+                const isOpen = openStates[i] || false;
+                const chinesePreview = sentence.chinese || '未填';
+                const serbianPreview = sentence.serbian || '未填';
+                group.innerHTML = `
+                    <div class="sentence-header" onclick="toggleContent(${i})">
+                        句子 ${i+1}: <span class="header-preview">${chinesePreview}</span> | <span class="header-preview">${serbianPreview}</span>
+                        <button class="delete" onclick="deleteSentence(${i}); event.stopPropagation();">删除组</button>
+                    </div>
+                    <div class="sentence-content" id="content-${i}" style="display: ${isOpen ? 'block' : 'none'};">
+                        <div class="input-group">
+                            <label>中文句子</label>
+                            <input type="text" value="${sentence.chinese || ''}" id="chinese-${i}" onchange="updateSentence(${i}, 'chinese', this.value)">
+                        </div>
+                        <div class="input-group">
+                            <label>塞尔维亚语句子</label>
+                            <input type="text" value="${sentence.serbian || ''}" id="serbian-${i}" onchange="updateSentence(${i}, 'serbian', this.value)">
+                        </div>
+                        <div class="input-group">
+                            <label>句子音频</label>
+                            <input type="file" accept="audio/*" id="audio-file-sentence-${i}" onchange="uploadSentenceAudio(${i}, this.files[0])">
+                            ${sentence.audioUrl ? `<audio src="${sentence.audioUrl}" controls id="audio-sentence-${i}"></audio>` : ''}
+                            <button onclick="playSentenceAudio(${i})">播放</button>
+                            <button class="pause" onclick="pauseAudio(${i}, null, 'sentence')">暂停</button>
+                        </div>
+                        <button onclick="decomposeWords(${i})">分解单词</button>
+                        <div id="words-${i}">
+                            ${renderWords(i)}
+                        </div>
+                    </div>
+                `;
+                container.appendChild(group);
+            });
+            openStates.forEach((open, i) => {
+                if (open && document.getElementById(`content-${i}`)) {
+                    document.getElementById(`content-${i}`).style.display = 'block';
+                }
+            });
+        }
+
+        function renderWords(i) {
+            let html = '';
+            const words = sentenceList[i].words || [];
+            words.forEach((word, j) => {
+                html += `
+                    <div class="word-group">
+                        <h4>单词 ${j+1}: <span id="word-chinese-preview-${i}-${j}">${word.chinese || '未填'}</span></h4>
+                        <div class="input-group">
+                            <label>中文</label>
+                            <input type="text" value="${word.chinese || ''}" id="word-chinese-input-${i}-${j}" onchange="updateWord(${i}, ${j}, 'chinese', this.value)">
+                        </div>
+                        <div class="input-group">
+                            <label>塞尔维亚语</label>
+                            <input type="text" value="${word.serbian || ''}" id="word-serbian-input-${i}-${j}" onchange="updateWord(${i}, ${j}, 'serbian', this.value)">
+                        </div>
+                        <div class="input-group">
+                            <label>单词音频</label>
+                            <input type="file" accept="audio/*" id="word-audio-file-${i}-${j}" onchange="uploadWordAudio(${i}, ${j}, this.files[0])">
+                            ${word.audioUrl ? `<audio src="${word.audioUrl}" controls id="word-audio-${i}-${j}"></audio>` : ''}
+                            <button onclick="playWordAudio(${i}, ${j})">播放</button>
+                            <button class="pause" onclick="pauseAudio(${i}, ${j}, 'word')">暂停</button>
+                        </div>
+                        <button class="delete" onclick="deleteWord(${i}, ${j})">删除词</button>
+                    </div>
+                `;
+            });
+            return html;
+        }
+
+        // ... (addSentence, deleteSentence, updateSentence, decomposeWords, updateWord, deleteWord, toggleContent 函数不变，省略以节省空间)
+
+        function readFileToBase64(file, callback) {
+            if (file.size > 2 * 1024 * 1024) {  // >2MB警告
+                alert('文件太大 (>2MB)，localStorage有限！试小音频。');
+                return;
+            }
+            if (!file.type.startsWith('audio/')) {
+                alert('不支持格式！用MP3/WAV。');
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = () => callback(reader.result);
+            reader.onerror = () => alert('文件读取失败！');
+            reader.readAsDataURL(file);
+        }
+
+        function uploadSentenceAudio(i, file) {
+            if (file) {
+                readFileToBase64(file, (base64) => {
+                    sentenceList[i].audioUrl = base64;
+                    saveData();
+                    const group = document.getElementById(`content-${i}`);
+                    if (group) {
+                        const inputGroup = group.querySelector('.input-group:last-of-type');
+                        let audio = inputGroup.querySelector('audio');
+                        if (audio) audio.remove();
+                        audio = document.createElement('audio');
+                        audio.src = base64;
+                        audio.controls = true;
+                        audio.id = `audio-sentence-${i}`;
+                        inputGroup.appendChild(audio);
+                    }
+                });
+            }
+        }
+
+        function playSentenceAudio(i) {
+            hasUserInteraction = true;  // 标记交互
+            const audio = document.getElementById(`audio-sentence-${i}`);
+            if (!audio) {
+                alert('无音频！先上传。');
+                return;
+            }
+            if (!hasUserInteraction) {
+                alert('需先点击页面（如按钮）交互，再播放！');
+                return;
+            }
+            audio.play().then(() => {
+                console.log('播放成功');
+            }).catch(e => {
+                console.error('播放错误:', e);
+                alert(`播放失败：${e.message}\n提示：用音频控件手动播放，或检查格式/大小。`);
+            });
+        }
+
+        function pauseAudio(i, j, type) {
+            const audio = type === 'sentence' ? document.getElementById(`audio-sentence-${i}`) : document.getElementById(`word-audio-${i}-${j}`);
+            if (audio) audio.pause();
+        }
+
+        function uploadWordAudio(i, j, file) {
+            if (file) {
+                readFileToBase64(file, (base64) => {
+                    sentenceList[i].words[j].audioUrl = base64;
+                    saveData();
+                    const wordGroup = document.querySelector(`#words-${i} .word-group:nth-of-type(${j+1})`);
+                    if (wordGroup) {
+                        const inputGroup = wordGroup.querySelector('.input-group:last-of-type');
+                        let audio = inputGroup.querySelector('audio');
+                        if (audio) audio.remove();
+                        audio = document.createElement('audio');
+                        audio.src = base64;
+                        audio.controls = true;
+                        audio.id = `word-audio-${i}-${j}`;
+                        inputGroup.appendChild(audio);
+                    }
+                });
+            }
+        }
+
+        function playWordAudio(i, j) {
+            hasUserInteraction = true;
+            const audio = document.getElementById(`word-audio-${i}-${j}`);
+            if (!audio) {
+                alert('无音频！先上传。');
+                return;
+            }
+            if (!hasUserInteraction) {
+                alert('需先点击页面交互，再播放！');
+                return;
+            }
+            audio.play().then(() => {
+                console.log('播放成功');
+            }).catch(e => {
+                console.error('播放错误:', e);
+                alert(`播放失败：${e.message}\n提示：用音频控件手动播放，或检查格式/大小。`);
+            });
+        }
+
+        // 初始渲染 (其他函数如addSentence等省略，复制前版即可)
+        render();
+    </script>
+</body>
+</html>
