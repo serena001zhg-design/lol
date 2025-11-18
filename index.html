@@ -1,194 +1,253 @@
-<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage-compat.js"></script>
-<script>
-  // ←←←←←←←←←←←←←← 把你的密钥粘贴在这里 ↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓
-  const firebaseConfig = {
-  apiKey: "AIzaSyALoOzZu6uPdEuZvbw9PMq3Vxljb8ddL-A",
-  authDomain: "lal-001-31ca4.firebaseapp.com",
-  projectId: "lal-001-31ca4",
-  storageBucket: "lal-001-31ca4.firebasestorage.app",
-  messagingSenderId: "779055965092",
-  appId: "1:779055965092:web:f334511adc3b6c0ae29731",
-  measurementId: "G-MW991BXKZS"
-};
-  // ↑↑↑↑↑↑↑↑↑↑↑↑↑↑ 到这里结束 ↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SerbBuilder: 塞尔维亚语学习库</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; background: #f4f4f4; }
+        h1 { text-align: center; color: #333; }
+        .sentence-group { border: 1px solid #ccc; margin-bottom: 20px; padding: 15px; border-radius: 8px; background: white; }
+        .sentence-header { background: #4CAF50; color: white; padding: 10px; cursor: pointer; border-radius: 4px; }
+        .sentence-content { display: none; padding: 10px; }
+        .word-group { border: 1px dashed #ddd; margin: 10px 0; padding: 10px; border-radius: 4px; }
+        .input-group { margin-bottom: 10px; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; }
+        input[type="text"], input[type="file"] { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        button { background: #4CAF50; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; margin: 5px 5px 5px 0; }
+        button:hover { background: #45a049; }
+        button.delete { background: #f44336; }
+        button.delete:hover { background: #da190b; }
+        button.pause { background: #ff9800; }
+        button.pause:hover { background: #e68900; }
+        audio { width: 100%; margin-top: 5px; }
+        #addSentence { text-align: center; margin: 20px 0; }
+        .header-preview { margin-left: 10px; }
+        .error-tip { color: red; font-size: 0.9em; }
+    </style>
+</head>
+<body>
+    <h1>SerbBuilder: 塞尔维亚语学习库</h1>
+    <p style="text-align: center;">点击“添加新句子”开始，按指南积累你的知识库！<br><small class="error-tip">提示：首次播放需点击页面交互（如按钮），支持MP3/WAV小文件。</small></p>
 
-  firebase.initializeApp(firebaseConfig);
-  const db = firebase.firestore();
-  const storage = firebase.storage();
+    <div id="sentenceContainer"></div>
+    <div id="addSentence">
+        <button onclick="addSentence()">添加新句子</button>
+    </div>
 
-  let sentenceList = [];
-  let openStates = [];
-  const DATA_DOC = "serbian-learning-data"; // 所有人共享同一个文档
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage-compat.js"></script>
+    <script>
+        // ←←←←←←←←←←←←←← 你的密钥直接贴在这里 ↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓
+        const firebaseConfig = {
+            apiKey: "AIzaSyALoOzZu6uPdEuZvbw9PMq3Vxljb8ddL-A",
+            authDomain: "lal-001-31ca4.firebaseapp.com",
+            projectId: "lal-001-31ca4",
+            storageBucket: "lal-001-31ca4.firebasestorage.app",
+            messagingSenderId: "779055965092",
+            appId: "1:779055965092:web:f334511adc3b6c0ae29731",
+            measurementId: "G-MW991BXKZS"
+        };
+        // ↑↑↑↑↑↑↑↑↑↑↑↑↑↑ 到这里结束 ↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑
 
-  // 从云端加载数据
-  async function loadData() {
-    try {
-      const doc = await db.collection("data").doc(DATA_DOC).get();
-      if (doc.exists) {
-        const data = doc.data();
-        sentenceList = data.sentences || [];
-        openStates = data.openStates || [];
-      }
-      render();
-    } catch (e) {
-      alert("加载云端数据失败，检查网络或密钥");
-      console.error(e);
-    }
-  }
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        const storage = firebase.storage();
 
-  // 保存到云端
-  async function saveData() {
-    try {
-      await db.collection("data").doc(DATA_DOC).set({
-        sentences: sentenceList,
-        openStates: openStates
-      });
-    } catch (e) {
-      alert("保存失败：" + e.message);
-    }
-  }
+        let sentenceList = [];
+        let openStates = [];
+        let hasUserInteraction = false;
+        document.addEventListener('click', () => { hasUserInteraction = true; }, { once: false });
 
-  // 上传音频到 Firebase Storage，返回永久链接
-  async function uploadAudio(file) {
-    if (!file) return "";
-    const ref = storage.ref().child("audio/" + Date.now() + "_" + file.name);
-    await ref.put(file);
-    return await ref.getDownloadURL();
-  }
+        const DATA_DOC = "serbian-data-v1";
 
-  // 下面所有函数都改成云端版（功能和原来一模一样）
-  async function addSentence() {
-    sentenceList.push({ chinese: '', serbian: '', audioUrl: '', words: [] });
-    openStates.push(true);
-    render();
-    await saveData();
-  }
+        async function loadData() {
+            try {
+                const doc = await db.collection("data").doc(DATA_DOC).get();
+                if (doc.exists) {
+                    const data = doc.data();
+                    sentenceList = data.sentences || [];
+                    openStates = data.openStates || [];
+                }
+                render();
+            } catch (e) {
+                console.error(e);
+                alert("加载云端数据失败，使用本地空数据");
+                render();
+            }
+        }
 
-  async function deleteSentence(i) {
-    if (confirm("确定删除这个句子组？")) {
-      sentenceList.splice(i, 1);
-      openStates.splice(i, 1);
-      render();
-      await saveData();
-    }
-  }
+        async function saveData() {
+            try {
+                await db.collection("data").doc(DATA_DOC).set({
+                    sentences: sentenceList,
+                    openStates: openStates
+                });
+            } catch (e) {
+                console.error(e);
+                alert("保存失败：" + e.message);
+            }
+        }
 
-  async function updateSentence(i, field, value) {
-    sentenceList[i][field] = value;
-    render();
-    await saveData();
-  }
+        async function uploadAudio(file) {
+            if (!file) return "";
+            const ref = storage.ref().child("audio/" + Date.now() + "_" + file.name);
+            await ref.put(file);
+            return await ref.getDownloadURL();
+        }
 
-  async function toggleContent(i) {
-    openStates[i] = !openStates[i];
-    render();
-    await saveData();
-  }
+        function render() {
+            const container = document.getElementById('sentenceContainer');
+            container.innerHTML = '';
+            sentenceList.forEach((sentence, i) => {
+                const group = document.createElement('div');
+                group.className = 'sentence-group';
+                const isOpen = openStates[i] || false;
+                const chinesePreview = sentence.chinese || '未填';
+                const serbianPreview = sentence.serbian || '未填';
+                group.innerHTML = `
+                    <div class="sentence-header" onclick="toggleContent(${i})">
+                        句子 ${i+1}: <span class="header-preview">${chinesePreview}</span> | <span class="header-preview">${serbianPreview}</span>
+                        <button class="delete" onclick="deleteSentence(${i}); event.stopPropagation();">删除组</button>
+                    </div>
+                    <div class="sentence-content" id="content-${i}" style="display: ${isOpen ? 'block' : 'none'};">
+                        <div class="input-group">
+                            <label>中文句子</label>
+                            <input type="text" value="${sentence.chinese || ''}" onchange="updateSentence(${i}, 'chinese', this.value)">
+                        </div>
+                        <div class="input-group">
+                            <label>塞尔维亚语句子</label>
+                            <input type="text" value="${sentence.serbian || ''}" onchange="updateSentence(${i}, 'serbian', this.value)">
+                        </div>
+                        <div class="input-group">
+                            <label>句子音频</label>
+                            <input type="file" accept="audio/*" onchange="uploadSentenceAudio(${i}, this.files[0])">
+                            ${sentence.audioUrl ? `<audio src="${sentence.audioUrl}" controls></audio>` : ''}
+                            <button onclick="playSentenceAudio(${i})">播放</button>
+                            <button class="pause" onclick="pauseAudio(${i}, null, 'sentence')">暂停</button>
+                        </div>
+                        <button onclick="decomposeWords(${i})">分解单词</button>
+                        <div id="words-${i}">${renderWords(i)}</div>
+                    </div>
+                `;
+                container.appendChild(group);
+            });
+        }
 
-  async function decomposeWords(i) {
-    const serbian = sentenceList[i].serbian.trim();
-    if (!serbian) return alert("请先填写塞尔维亚语句子！");
-    const words = serbian.split(/[\s,.;!?]+/).filter(w => w);
-    sentenceList[i].words = words.map(w => ({ chinese: '', serbian: w, audioUrl: '' }));
-    render();
-    await saveData();
-  }
+        function renderWords(i) {
+            let html = '';
+            const words = sentenceList[i].words || [];
+            words.forEach((word, j) => {
+                html += `
+                    <div class="word-group">
+                        <h4>单词 ${j+1}: <span id="word-chinese-preview-${i}-${j}">${word.chinese || '未填'}</span></h4>
+                        <div class="input-group">
+                            <label>中文</label>
+                            <input type="text" value="${word.chinese || ''}" onchange="updateWord(${i}, ${j}, 'chinese', this.value)">
+                        </div>
+                        <div class="input-group">
+                            <label>塞尔维亚语</label>
+                            <input type="text" value="${word.serbian || ''}" onchange="updateWord(${i}, ${j}, 'serbian', this.value)">
+                        </div>
+                        <div class="input-group">
+                            <label>单词音频</label>
+                            <input type="file" accept="audio/*" onchange="uploadWordAudio(${i}, ${j}, this.files[0])">
+                            ${word.audioUrl ? `<audio src="${word.audioUrl}" controls></audio>` : ''}
+                            <button onclick="playWordAudio(${i}, ${j})">播放</button>
+                            <button class="pause" onclick="pauseAudio(${i}, ${j}, 'word')">暂停</button>
+                        </div>
+                        <button class="delete" onclick="deleteWord(${i}, ${j})">删除词</button>
+                    </div>
+                `;
+            });
+            return html;
+        }
 
-  async function addWord(i) {
-    sentenceList[i].words.push({ chinese: '', serbian: '', audioUrl: '' });
-    render();
-    await saveData();
-  }
+        async function addSentence() {
+            sentenceList.push({ chinese: '', serbian: '', audioUrl: '', words: [] });
+            openStates.push(true);
+            render();
+            await saveData();
+        }
 
-  async function updateWord(i, j, field, value) {
-    sentenceList[i].words[j][field] = value;
-    render();
-    await saveData();
-  }
+        async function deleteSentence(i) {
+            if (confirm('确定删除这个句子组？')) {
+                sentenceList.splice(i, 1);
+                openStates.splice(i, 1);
+                render();
+                await saveData();
+            }
+        }
 
-  async function deleteWord(i, j) {
-    sentenceList[i].words.splice(j, 1);
-    render();
-    await saveData();
-  }
+        async function updateSentence(i, field, value) {
+            sentenceList[i][field] = value;
+            render();
+            await saveData();
+        }
 
-  async function uploadSentenceAudio(i, file) {
-    const url = await uploadAudio(file);
-    if (url) {
-      sentenceList[i].audioUrl = url;
-      render();
-      await saveData();
-    }
-  }
+        function toggleContent(i) {
+            openStates[i] = !openStates[i];
+            render();
+            saveData();
+        }
 
-  async function uploadWordAudio(i, j, file) {
-    const url = await uploadAudio(file);
-    if (url) {
-      sentenceList[i].words[j].audioUrl = url;
-      render();
-      await saveData();
-    }
-  }
+        async function decomposeWords(i) {
+            const serbian = sentenceList[i].serbian || '';
+            if (!serbian.trim()) return alert('请先填写塞尔维亚语句子！');
+            const rawWords = serbian.split(/[\s,.;!?]+/).filter(w => w.trim());
+            sentenceList[i].words = rawWords.map(w => ({ chinese: '', serbian: w, audioUrl: '' }));
+            render();
+            await saveData();
+        }
 
-  function playSentenceAudio(i) {
-    const audio = document.querySelector(`#content-${i} audio`);
-    audio && audio.play();
-  }
+        async function updateWord(i, j, field, value) {
+            sentenceList[i].words[j][field] = value;
+            render();
+            await saveData();
+        }
 
-  function playWordAudio(i, j) {
-    const audio = document.querySelector(`#words-${i} .word-group:nth-child(${j+1}) audio`);
-    audio && audio.play();
-  }
+        async function deleteWord(i, j) {
+            sentenceList[i].words.splice(j, 1);
+            render();
+            await saveData();
+        }
 
-  function render() {
-    const container = document.getElementById('sentenceContainer');
-    container.innerHTML = '';
-    sentenceList.forEach((sentence, i) => {
-      const isOpen = openStates[i] || false;
-      const group = document.createElement('div');
-      group.className = 'sentence-group';
-      group.innerHTML = `
-        <div class="sentence-header" onclick="toggleContent(${i})">
-          句子 ${i+1}: ${sentence.chinese || '未填'} | ${sentence.serbian || '未填'}
-          <button class="delete" onclick="deleteSentence(${i});event.stopPropagation()">删除组</button>
-        </div>
-        <div class="sentence-content" id="content-${i}" style="display:${isOpen?'block':'none'}">
-          <div class="input-group">
-            <label>中文句子</label>
-            <input type="text" value="${sentence.chinese || ''}" onchange="updateSentence(${i},'chinese',this.value)">
-          </div>
-          <div class="input-group">
-            <label>塞尔维亚语句子</label>
-            <input type="text" value="${sentence.serbian || ''}" onchange="updateSentence(${i},'serbian',this.value)">
-          </div>
-          <div class="input-group">
-            <label>句子音频</label>
-            <input type="file" accept="audio/*" onchange="uploadSentenceAudio(${i},this.files[0])">
-            ${sentence.audioUrl ? `<audio controls src="${sentence.audioUrl}"></audio>` : ''}
-          </div>
-          <button onclick="decomposeWords(${i})">分解单词</button>
-          <button onclick="addWord(${i})">+ 添加单词</button>
-          <div id="words-${i}">${renderWords(i)}</div>
-        </div>
-      `;
-      container.appendChild(group);
-    });
-  }
+        async function uploadSentenceAudio(i, file) {
+            if (!file) return;
+            const url = await uploadAudio(file);
+            sentenceList[i].audioUrl = url;
+            render();
+            await saveData();
+        }
 
-  function renderWords(i) {
-    return (sentenceList[i].words || []).map((w, j) => `
-      <div class="word-group">
-        <input type="text" value="${w.chinese || ''}" onchange="updateWord(${i},${j},'chinese',this.value)" placeholder="中文">
-        <input type="text" value="${w.serbian || ''}" onchange="updateWord(${i},${j},'serbian',this.value)" placeholder="塞尔维亚语">
-        <input type="file" accept="audio/*" onchange="uploadWordAudio(${i},${j},this.files[0])">
-        ${w.audioUrl ? `<audio controls src="${w.audioUrl}"></audio>` : ''}
-        <button class="delete" onclick="deleteWord(${i},${j})">删除</button>
-      </div>
-    `).join('');
-  }
+        async function uploadWordAudio(i, j, file) {
+            if (!file) return;
+            const url = await uploadAudio(file);
+            sentenceList[i].words[j].audioUrl = url;
+            render();
+            await saveData();
+        }
 
-  // 页面加载就从云端拉数据
-  loadData();
-</script>
+        function playSentenceAudio(i) {
+            hasUserInteraction = true;
+            const audio = document.querySelector(`#content-${i} audio`);
+            if (audio) audio.play();
+        }
+
+        function playWordAudio(i, j) {
+            hasUserInteraction = true;
+            const audio = document.querySelector(`#words-${i} .word-group:nth-child(${j+1}) audio`);
+            if (audio) audio.play();
+        }
+
+        function pauseAudio(i, j, type) {
+            const audio = type === 'sentence' ? document.querySelector(`#content-${i} audio`) : document.querySelector(`#words-${i} .word-group:nth-child(${j+1}) audio`);
+            if (audio) audio.pause();
+        }
+
+        loadData(); // 启动加载云端数据
+    </script>
+</body>
+</html>
