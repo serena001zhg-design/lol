@@ -2,11 +2,20 @@ let words = [];
 
 // 从本地或云端加载单词（先用本地空数组）
 function loadWords() {
+apiKey: "AIzaSyALoOzZu6uPdEuZvbw9PMq3Vxljb8ddL-A",
+  authDomain: "lal-001-31ca4.firebaseapp.com",
+  projectId: "lal-001-31ca4",
+  storageBucket: "lal-001-31ca4.firebasestorage.app",
+  messagingSenderId: "779055965092",
+  appId: "1:779055965092:web:f334511adc3b6c0ae29731",
     const saved = localStorage.getItem('serbianWords');
     if (saved) words = JSON.parse(saved);
     renderWords();
 }
-
+// 初始化 Firebase
+firebase.initializeApp(firebaseConfig);
+const storage = firebase.storage();
+const storageRef = storage.ref();
 // 保存到浏览器（临时用，后面你再想换云端我再教你）
 function saveWords() {
     localStorage.setItem('serbianWords', JSON.stringify(words));
