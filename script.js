@@ -1,8 +1,6 @@
 // ========= Vercel KV 最终安全版（用环境变量）=========
-const UPSTASH_URL   = import.meta.env.VITE_UPSTASH_URL;
-const UPSTASH_TOKEN = import.meta.env.VITE_UPSTASH_TOKEN;
-let words = [];
-
+const UPSTASH_URL   = window.VITE_UPSTASH_URL   || import.meta.env?.VITE_UPSTASH_URL;
+const UPSTASH_TOKEN = window.VITE_UPSTASH_TOKEN || import.meta.env?.VITE_UPSTASH_TOKEN;
 // 加载和保存代码完全不变！！！
 async function loadWords() {
   if (!UPSTASH_URL || !UPSTASH_TOKEN) {
