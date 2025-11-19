@@ -1,7 +1,6 @@
 // ========= Vercel KV 最终安全版（用环境变量）=========
-const UPSTASH_URL   = process.env.UPSTASH_URL;      // 自动从后台读取
-const UPSTASH_TOKEN = process.env.UPSTASH_TOKEN;    // 自动从后台读取
-
+const UPSTASH_URL   = import.meta.env.VITE_UPSTASH_URL;
+const UPSTASH_TOKEN = import.meta.env.VITE_UPSTASH_TOKEN;
 let words = [];
 
 // 加载和保存代码完全不变！！！
