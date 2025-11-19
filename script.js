@@ -1,28 +1,28 @@
-// ========= Vercel KV (Upstash Redis) 最终版 =========
-// 直接把下面两行改成你刚复制的！！！
-const UPSTASH_URL   = 'KV_REST_API_URL="***************"';           // ← 粘贴第3行的网址
-const UPSTASH_TOKEN = 'KV_REST_API_TOKEN="*****************"';     // ← 粘贴第2行的整串 token
+// ========= Vercel KV 最终安全版（用环境变量）=========
+const UPSTASH_URL   = process.env.UPSTASH_URL;      // 自动从后台读取
+const UPSTASH_TOKEN = process.env.UPSTASH_TOKEN;    // 自动从后台读取
 
 let words = [];
 
-// 从云端加载单词本
+// 加载和保存代码完全不变！！！
 async function loadWords() {
+  if (!UPSTASH_URL || !UPSTASH_TOKEN) {
+    console.log('环境变量未配置');
+    renderWords(); 
+    return;
+  }
   try {
     const res = await fetch(`${UPSTASH_URL}/get/serbian-words`, {
       headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` }
     });
     const json = await res.json();
-    if (json.result) {
-      words = JSON.parse(json.result);
-    }
+    if (json.result) words = JSON.parse(json.result);
   } catch (e) {
-    console.log('第一次使用，初始化为空');
     words = [];
   }
   renderWords();
 }
 
-// 保存到云端
 async function saveWords() {
   try {
     await fetch(`${UPSTASH_URL}/set/serbian-words`, {
@@ -39,7 +39,6 @@ async function saveWords() {
   }
 }
 
-// 你原来的 renderWords / playAudio / deleteWord / addWord 全部保持不动！
-// 只要它们最后调用 saveWords() 就行
+// 其他代码（renderWords、addWord、deleteWord、playAudio）完全不动
 
 window.onload = loadWords;
