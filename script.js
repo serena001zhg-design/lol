@@ -42,11 +42,11 @@ function renderWords() {
 
 // 播放音频
 function playAudio(src) {
-    if (!src) return alert('暂无音频');
-    const audio = new Audio(src);
-    audio.play();
-}
-
+  if (!src) return alert('没有音频链接');
+  const audio = new Audio(src);
+  audio.play().catch(e => {
+    alert('手机需要先点击页面任意位置才能播放音频哦~（浏览器安全限制）');
+  });
 // 删除单词
 function deleteWord(index) {
     if (confirm('确定删除？')) {
